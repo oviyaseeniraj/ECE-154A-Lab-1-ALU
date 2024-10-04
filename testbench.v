@@ -2,10 +2,16 @@
 
 module testbench;
     reg clk, reset;
-    reg [31:0] a, b;           // Inputs to the ALU
-    reg [2:0] f;               // Function select
-    wire [31:0] result;        // Output from the ALU
-    wire zero, overflow, carry, negative; // Flags
+    reg [2:0] f;              // Function select, from testvectors
+    reg [31:0] a, b;          // Inputs to ALU from testvector 
+    reg [31:0] exp_res;       // Expected output from testvector, will be compared against output of ALU
+    reg exp_zero, exp_over, exp_carry, exp_neg; // Expected flag values from testvector, will be compared against ALU
+
+    wire [31:0] result;        // Output from the ALU, will be compared against expected output from testvector
+    wire zero, overflow, carry, negative; // Flag outputs from ALU, will be compared against expected flags from testvector
+
+    reg [31:0] vectornum, errors;   // variables to keep track of test cases (vector being tested and count of the number of errors)
+    reg [31:0] testvectors[184:0];  // array of testvectors  (specifies size of each element and number of elements, in this case 23*8)
 
     // Instantiate the ALU
     alu my_alu (
@@ -19,37 +25,60 @@ module testbench;
         .negative(negative)
     );
 
+    // generate clock
+    always begin
+        // clock with 10ns period
+        clk = 1; #5;
+        clk = 0; #5;
+    end
+
     // Read vectors
     initial begin
-        $readmemh("alu.tv", testvectors); // Read vectors
-        // Initialize
-        vectornum = 0;
-        errors = 0;
-        //Apply reset wait
-        reset = 1;
-        #10; // delay
+        $readmemh("alu.tv", testvectors); // Read vectors in hex format (mem*h*) and store in testvectors
+        vectornum = 0;  // row number from vectorfile
+        errors = 0;     // error counter
+        reset = 1;      // Apply reset wait
+        #10;            // delay
         reset = 0;
     end
 
     // apply test vectors on rising edge of clk
     always @(posedge clk) begin
-        #1; // Apply inputs with some delay (1ns) AFTER clock
-        {a, b, c, yexpected} = testvectors[vectornum];
+        #1;
+        {f, a, b, exp_res, exp_zero, exp_over, exp_carry, exp_neg} = testvectors[vectornum];
     end
 
-    // check results on falling edge of clk
-    always @(negedge clk) if (~reset) // skip during reset
-    begin
-        if (y !== yexpected) begin 
-            $display("Error: inputs = %h", {a, b, c});
-            $display(" outputs = %h (%h exp)",y,yexpected);
-            // increment array index and read next testvector
-            vectornum = vectornum + 1;
-            if (testvectors[vectornum] === 4'bx) begin 
-                $display("%d tests completed with %d errors", 
-                    vectornum, errors);
-                $finish; // End simulation 
+    always @(negedge clk)
+        if(~reset) begin
+            if (result !== exp_res) begin
+                $display("Error: inputs = %h", {f,a,b});
+                $display(" outputs = %h (%h exp)", result, exp_res);
+                errors= errors+1;
+            end
+            if (exp_carry !== carry) begin
+                $display("Error: inputs = %h", {f,a,b});
+                $display(" outputs = %h (%h exp)", carry, exp_carry);
+                errors= errors+1;
+            end
+            if (exp_neg !== negative) begin
+                $display("Error: inputs = %h", {f,a,b});
+                $display(" outputs = %h (%h exp)", negative, exp_neg);
+                errors= errors+1;
+            end
+            if (exp_over !== overflow) begin
+                $display("Error: inputs = %h", {f,a,b});
+                $display(" outputs = %h (%h exp)", overflow, exp_over);
+                errors= errors+1;
+            end
+            if (exp_zero !== zero) begin
+                $display("Error: inputs = %h", {f,a,b});
+                $display(" outputs = %h (%h exp)", zero, exp_zero);
+                errors= errors+1;
+            end
+            vectornum = vectornum+1;
+            if(testvectors[vectornum] == 8'hx) begin
+                $display("%d tests completed with %d errrors", vectornum, errors);
+                $finish;
             end
         end
-    end
 endmodule
