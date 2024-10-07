@@ -1,84 +1,83 @@
-`timescale 1ns / 1ps
-
 module testbench;
-    reg clk, reset;
-    reg [2:0] f;              // Function select, from testvectors
-    reg [31:0] a, b;          // Inputs to ALU from testvector 
-    reg [31:0] exp_res;       // Expected output from testvector, will be compared against output of ALU
-    reg exp_zero, exp_over, exp_carry, exp_neg; // Expected flag values from testvector, will be compared against ALU
+    // Define registers for inputs and expected outputs
+    reg [31:0] operand_a, operand_b;
+    reg [2:0] operation;
 
-    wire [31:0] result;        // Output from the ALU, will be compared against expected output from testvector
-    wire zero, overflow, carry, negative; // Flag outputs from ALU, will be compared against expected flags from testvector
+    // ALU output signals
+    wire [31:0] actual_result;
+    wire zero_out, overflow_out, carry_out, negative_out;
 
-    reg [31:0] vectornum, errors;   // variables to keep track of test cases (vector being tested and count of the number of errors)
-    reg [31:0] testvectors[184:0];  // array of testvectors  (specifies size of each element and number of elements, in this case 23*8)
-
-    // Instantiate the ALU
-    alu my_alu (
-        .a(a),
-        .b(b),
-        .f(f),
-        .result(result),
-        .zero(zero),
-        .overflow(overflow),
-        .carry(carry),
-        .negative(negative)
+    // Instantiate the ALU module
+    alu alu_dut (
+        .a(operand_a),
+        .b(operand_b),
+        .f(operation),
+        .result(actual_result),
+        .zero(zero_out),
+        .overflow(overflow_out),
+        .carry(carry_out),
+        .negative(negative_out)
     );
 
-    // generate clock
-    always begin
-        // clock with 10ns period
-        clk = 1; #5;
-        clk = 0; #5;
-    end
+    // Registers for expected results from the test vectors
+    reg [31:0] expected_result;
+    reg expected_zero, expected_overflow, expected_carry, expected_negative;
+    integer vector_file, vector_read;
+    reg end_of_test; // Control flag for ending the loop
 
-    // Read vectors
+    // Task to load the next test vector from the file
+    task load_test_vector;
+        input integer file;
+        output integer result;
+        result = $fscanf(file, "%h %h %h %h %d %d %d %d\n",
+                         operation, operand_a, operand_b, expected_result,
+                         expected_zero, expected_overflow, expected_carry, expected_negative);
+    endtask
+
+    // Task to validate actual results against expected results
+    task validate_results;
+        if (actual_result !== expected_result || zero_out !== expected_zero ||
+            overflow_out !== expected_overflow || carry_out !== expected_carry ||
+            negative_out !== expected_negative) begin
+            $display("Test FAILED for operation=%h, a=%h, b=%h. Expected: result=%h zero=%d overflow=%d carry=%d negative=%d. Got: result=%h zero=%d overflow=%d carry=%d negative=%d",
+                     operation, operand_a, operand_b, expected_result, expected_zero, expected_overflow,
+                     expected_carry, expected_negative, actual_result, zero_out, overflow_out, carry_out, negative_out);
+        end else begin
+            $display("Test PASSED for operation=%d, a=%h, b=%h.", operation, operand_a, operand_b);
+        end
+    endtask
+
+    // Main testing process
     initial begin
-        $readmemh("alu.tv", testvectors); // Read vectors in hex format (mem*h*) and store in testvectors
-        vectornum = 0;  // row number from vectorfile
-        errors = 0;     // error counter
-        reset = 1;      // Apply reset wait
-        #10;            // delay
-        reset = 0;
-    end
+        // Initialize the end_of_test flag
+        end_of_test = 0;
 
-    // apply test vectors on rising edge of clk
-    always @(posedge clk) begin
-        #1;
-        {f, a, b, exp_res, exp_zero, exp_over, exp_carry, exp_neg} = testvectors[vectornum];
-    end
+        // Open the test vector file
+        vector_file = $fopen("alu.tv", "r");
+        if (vector_file == 0) begin
+            $display("ERROR: Could not open test vector file.");
+            $finish;
+        end
 
-    always @(negedge clk)
-        if(~reset) begin
-            if (result !== exp_res) begin
-                $display("Error: inputs = %h", {f,a,b});
-                $display(" outputs = %h (%h exp)", result, exp_res);
-                errors= errors+1;
-            end
-            if (exp_carry !== carry) begin
-                $display("Error: inputs = %h", {f,a,b});
-                $display(" outputs = %h (%h exp)", carry, exp_carry);
-                errors= errors+1;
-            end
-            if (exp_neg !== negative) begin
-                $display("Error: inputs = %h", {f,a,b});
-                $display(" outputs = %h (%h exp)", negative, exp_neg);
-                errors= errors+1;
-            end
-            if (exp_over !== overflow) begin
-                $display("Error: inputs = %h", {f,a,b});
-                $display(" outputs = %h (%h exp)", overflow, exp_over);
-                errors= errors+1;
-            end
-            if (exp_zero !== zero) begin
-                $display("Error: inputs = %h", {f,a,b});
-                $display(" outputs = %h (%h exp)", zero, exp_zero);
-                errors= errors+1;
-            end
-            vectornum = vectornum+1;
-            if(testvectors[vectornum] == 8'hx) begin
-                $display("%d tests completed with %d errrors", vectornum, errors);
-                $finish;
+        // Loop through the file and test each vector
+        while (!end_of_test) begin
+            // Load the test vector
+            load_test_vector(vector_file, vector_read);
+            
+            // If the test vector isn't read correctly, stop the loop
+            if (vector_read != 8) begin
+                $display("End of file or invalid format detected. Exiting loop.");
+                end_of_test = 1; // Set flag to exit the loop
+            end else begin
+                // Allow some time for the ALU to process the inputs
+                #10;
+                // Validate the actual outputs with the expected results
+                validate_results();
             end
         end
+
+        // Close the file and end the simulation
+        $fclose(vector_file);
+        $stop;
+    end
 endmodule
