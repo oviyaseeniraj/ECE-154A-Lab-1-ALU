@@ -56,8 +56,8 @@ module alu(
             end
             3'b101: begin  // SLT operation (f=5)
                 result = slt_result;     // SLT for f=5
-                carry = 1'b0;            // No carry for SLT
-                overflow = 1'b0;         // No overflow for SLT
+                carry = cout;            // Reg cout
+                overflow =  (a[31] != b[31]) && (a[31] != result[31]); // SLT uses subtraction
                 negative = result[31];   // Negative flag based on result MSB
             end
             default: result = 32'b0;
