@@ -28,6 +28,9 @@ module alu(
         carry = 1'b0;
         negative = 1'b0;
 
+        
+        overflow = ~(f[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & (~f[1]); 
+
         case (f)
             3'b000: begin  // ADD operation (f=0)
                 result = sum;            // ADD
@@ -38,8 +41,7 @@ module alu(
             end
             3'b001: begin  // SUB operation (f=1)
                 result = sum;            // SUB
-                carry = cout || (b == 32'b0);            // Carry for SUB
-                overflow = ~(f[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & (~f[1]); // Overflow for SUB
+                carry = cout || (b == 32'b0);            // Carry for SUB// Overflow for SUB
                 negative = result[31];   // Negative flag based on result MSB
             end
             3'b010: begin  // AND operation (f=2)
@@ -57,7 +59,6 @@ module alu(
             3'b101: begin  // SLT operation (f=5)
                 result = slt_result;     // SLT for f=5
                 carry = cout || (b == 32'b0); // Subtraction cout
-                overflow = ~(f[0] ^ b[31] ^ a[31]) & (sum[31] ^ a[31]) & ~f[1];
                 negative = result[31];   // Negative flag based on result MSB
             end
             default: result = 32'b0;
