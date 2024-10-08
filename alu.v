@@ -13,8 +13,8 @@ module alu(
     wire [31:0] slt_result;
     wire cout;
 
-    // Invert b for subtraction (only when f=SUB, which is f=1)
-    assign b_neg = (f == 3'b001) ? ~b + 1 : b;
+    // Invert b for subtraction (only when f=SUB or SLT, which is f=1)
+    assign b_neg = (f == 3'b001 || f == 3'b101) ? ~b + 1 : b;
 
     // Adder for addition and subtraction
     assign {cout, sum} = a + b_neg;
@@ -38,8 +38,8 @@ module alu(
             end
             3'b001: begin  // SUB operation (f=1)
                 result = sum;            // SUB
-                carry = cout;            // Carry for SUB
-                overflow = (a[31] != b[31]) && (a[31] != result[31]); // Overflow for SUB
+                carry = cout || (b == 32'b0);            // Carry for SUB
+                overflow = ~(f[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & (~f[1]); // Overflow for SUB
                 negative = result[31];   // Negative flag based on result MSB
             end
             3'b010: begin  // AND operation (f=2)
@@ -56,8 +56,8 @@ module alu(
             end
             3'b101: begin  // SLT operation (f=5)
                 result = slt_result;     // SLT for f=5
-                carry = cout;            // Reg cout
-                overflow =  (a[31] != b[31]) && (a[31] != result[31]); // SLT uses subtraction
+                carry = cout || (b == 32'b0); // Subtraction cout
+                overflow = ~(f[0] ^ b[31] ^ a[31]) & (sum[31] ^ a[31]) & ~f[1];
                 negative = result[31];   // Negative flag based on result MSB
             end
             default: result = 32'b0;
