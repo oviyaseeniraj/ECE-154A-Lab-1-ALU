@@ -24,8 +24,12 @@ module alu(
 
     always @(*) begin
         // Default flag values for logical operations
-        negative = 1'b0;
-        overflow = ~(f[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & (~f[1]);
+        overflow = 1'b0;
+        carry = 1'b0;
+        negative = result[31];
+
+        
+        overflow = ~(f[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & (~f[1]); 
         result = sum;
 
         case (f)
@@ -33,28 +37,21 @@ module alu(
                 carry = cout;            // Carry for ADD
                 // Overflow occurs when adding two numbers of the same sign results in a different signed result
                 overflow = (a[31] == b[31]) && (result[31] != a[31]); 
-                negative = result[31];   // Negative flag based on result MSB
             end
             3'b001: begin  // SUB operation (f=1)
                 carry = cout || (b == 32'b0);            // Carry for SUB// Overflow for SUB
-                negative = result[31];   // Negative flag based on result MSB
             end
             3'b010: begin  // AND operation (f=2)
                 result = a & b;          // AND
-                carry = 1'b0;            // No carry for AND
                 overflow = 1'b0;         // No overflow for AND
-                negative = result[31];   // Negative flag based on result MSB
             end
             3'b011: begin // OR operation (f=3)
                 result = a | b;
-                carry = 1'b0; // No carry for AND
                 overflow = 1'b0; // No overflow for OR
-                negative = result[31]; // Negative flag based on result MSB
             end
             3'b101: begin  // SLT operation (f=5)
                 result = slt_result;     // SLT for f=5
                 carry = cout || (b == 32'b0); // Subtraction cout
-                negative = result[31];   // Negative flag based on result MSB
             end
             default: result = 32'b0;
         endcase
